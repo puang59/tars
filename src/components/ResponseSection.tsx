@@ -12,11 +12,6 @@ export default function ResponseSection({
       <div className="markdown-container">
         <MarkdownRenderer content={response} />
       </div>
-      <div className="copy-shortcut">
-        <kbd className={isCopied ? "copied size-inc" : " size-inc"}>⌘</kbd>
-        <span> + </span>
-        <kbd className={isCopied ? "copied" : ""}>C</kbd>
-      </div>
     </section>
   );
 }

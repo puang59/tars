@@ -19,8 +19,13 @@ function App() {
   const [isHovering, setIsHovering] = useState(false);
   const [lastClearedContext, setLastClearedContext] = useState("");
   const [screenshotData, setScreenshotData] = useState<Uint8Array | null>(null);
+  const [currentMode, setCurrentMode] = useState<"clipboard" | "screenshot">(
+    "clipboard"
+  );
+  const [forceRefresh, setForceRefresh] = useState(0);
   const lastClearedRef = useRef("");
   const lastAcceptedRef = useRef("");
+  const chatContentRef = useRef<HTMLDivElement>(null);
 
   const normalizeContext = (text: string) =>
     text.normalize("NFC").replace(/\s+/g, " ").trim();
@@ -47,12 +52,54 @@ function App() {
     console.log("Loading state: ", isLoading);
   }, [isLoading]);
 
+  // Anti-ghosting: Force repaint on scroll
+  useEffect(() => {
+    const chatContent = chatContentRef.current;
+    if (!chatContent) return;
+
+    const forceRepaint = () => {
+      // Simple repaint trigger
+      chatContent.style.transform = "translate3d(0, 0, 0.1px)";
+      requestAnimationFrame(() => {
+        chatContent.style.transform = "translate3d(0, 0, 0)";
+      });
+    };
+
+    const handleScroll = () => {
+      forceRepaint();
+    };
+
+    chatContent.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      chatContent.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  // Cleanup effect to prevent ghosting on window state changes
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Only clear loading state when window is hidden
+        setIsLoading(false);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+
   const handleToggle = async (includeScreenshot = false) => {
     try {
       console.log(
         "🔧 handleToggle called with includeScreenshot:",
         includeScreenshot
       );
+
+      // Only clear loading state, preserve conversation history
+      setIsLoading(false);
 
       let screenshotData: Uint8Array | null = null;
 
@@ -65,10 +112,20 @@ function App() {
           "bytes"
         );
         setScreenshotData(screenshotData);
+        setCurrentMode("screenshot");
       } else {
         console.log("🪟 Showing window only...");
         await invoke("toggle_window");
         setScreenshotData(null); // Clear screenshot data for clipboard-only mode
+        setCurrentMode("clipboard");
+      }
+
+      // Force component re-render to clear any ghosting (only if needed)
+      // Only trigger refresh if there's actual content that might ghost
+      if (response || question || context) {
+        setTimeout(() => {
+          setForceRefresh((prev) => prev + 1);
+        }, 100);
       }
 
       // Get clipboard content for context
@@ -100,6 +157,9 @@ function App() {
         setContext(trimmed);
         setLastClearedContext("");
         lastAcceptedRef.current = trimmed;
+      } else {
+        // If we're not setting new context, preserve existing conversation
+        console.log("✅ Preserving existing conversation");
       }
 
       console.log("🎯 Context set successfully");
@@ -254,85 +314,385 @@ function App() {
 
   const truncate = (str: string, maxLength: number) => {
     if (str.length <= maxLength) return str;
-    return str.slice(0, maxLength) + "...";
+    // Try to break at word boundary
+    const truncated = str.slice(0, maxLength);
+    const lastSpace = truncated.lastIndexOf(" ");
+    if (lastSpace > maxLength * 0.8) {
+      return str.slice(0, lastSpace) + "...";
+    }
+    return truncated + "...";
   };
 
   return (
-    <main>
-      {question && (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "transparent",
+        padding: "16px",
+        display: "flex",
+        flexDirection: "column",
+        gap: "12px",
+      }}
+    >
+      {/* Top Control Bar */}
+      <div
+        style={{
+          backgroundColor: "rgba(0, 0, 0, 0.25)",
+          borderRadius: "8px",
+          padding: "8px 16px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          // Removed boxShadow to prevent rendering issues
+        }}
+      >
+        {/* Left side - TARS branding */}
         <div
           style={{
-            marginLeft: "auto",
-          }}
-        >
-          <p
-            className="text-sm bg-zinc-800/70 rounded-md"
-            style={{
-              padding: "6px 10px",
-            }}
-          >
-            {question}
-          </p>
-        </div>
-      )}
-      {isLoading && <p>Thinking...</p>}
-      {!isLoading && response && (
-        <ResponseSection response={response} isCopied={isCopied} />
-      )}
-      {context && (
-        <div
-          onMouseEnter={() => setIsHovering(true)}
-          onMouseLeave={() => setIsHovering(false)}
-          onClick={() => {
-            const norm = normalizeContext(context);
-            setLastClearedContext(norm);
-            lastClearedRef.current = norm;
-            setContext("");
-          }}
-          style={{
-            position: "relative",
-            width: "60%",
-            cursor: "pointer",
-            borderRadius: 4,
-            padding: "8px 12px",
             display: "flex",
             alignItems: "center",
-            gap: 8,
-            backgroundColor: isHovering
-              ? "rgba(63, 63, 70, 0.7)"
-              : "rgba(39, 39, 42, 0.6)",
-            border: `1px solid ${
-              isHovering ? "rgba(161,161,170,0.8)" : "rgba(113,113,122,0.7)"
-            }`,
-            boxShadow: isHovering ? "0 0 0 1px rgba(161,161,170,0.3)" : "none",
-            transition:
-              "background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
+            gap: "8px",
           }}
         >
-          {isHovering ? (
-            <X size={14} style={{ color: "#ffffff" }} />
-          ) : (
-            <FileText size={14} style={{ color: "#d4d4d8" }} />
-          )}
-          <p style={{ fontSize: 12, color: "#e4e4e7", margin: 0 }}>
-            {truncate(context, 30)}
-            {screenshotData && (
-              <span style={{ color: "#4ade80", marginLeft: "8px" }}>📸</span>
-            )}
-          </p>
+          <div
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor: "#3b82f6",
+            }}
+          ></div>
+          <div
+            style={{
+              fontWeight: "600",
+              color: "#ffffff",
+              fontSize: "14px",
+            }}
+          >
+            TARS
+          </div>
         </div>
-      )}
 
-      <input
-        type="text"
-        value={inputValue}
-        onChange={(e) => setInputValue(e.target.value)}
-        onKeyDown={handleKeyPress}
-        placeholder="What's on your mind? (Cmd+Shift+Y for screenshot context)"
-        className="main-input"
-        autoFocus
-      />
-    </main>
+        {/* Center - Mode indicator and shortcuts */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            fontSize: "11px",
+            fontWeight: "400",
+          }}
+        >
+          <div
+            style={{
+              color: currentMode === "screenshot" ? "#4ade80" : "#a1a1aa",
+            }}
+          >
+            {currentMode === "clipboard"
+              ? "⌘⇧Y for image context"
+              : "⌘⇧U for clipboard context"}
+          </div>
+          <div
+            style={{
+              width: "1px",
+              height: "10px",
+              backgroundColor: "rgba(255, 255, 255, 0.2)",
+            }}
+          ></div>
+          <div style={{ color: "#a1a1aa" }}>⌘C to copy</div>
+        </div>
+
+        {/* Right side - Status indicator */}
+        <div
+          style={{
+            width: "8px",
+            height: "8px",
+            borderRadius: "50%",
+            backgroundColor:
+              currentMode === "screenshot" ? "#4ade80" : "#6b7280",
+          }}
+        ></div>
+      </div>
+
+      {/* Main Content Area */}
+      <div
+        key={`main-content-${forceRefresh}`}
+        style={{
+          backgroundColor: "rgba(0, 0, 0, 0.15)",
+          borderRadius: "16px",
+          padding: "20px",
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          // Removed boxShadow to prevent rendering issues
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "500px",
+          maxHeight: "70vh",
+          overflow: "hidden",
+          // Aggressive anti-ghosting measures
+          transform: "translate3d(0, 0, 0)",
+          backfaceVisibility: "hidden",
+          isolation: "isolate",
+          position: "relative",
+          zIndex: 1,
+          // Force GPU acceleration
+          willChange: "transform",
+          // Prevent text persistence
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
+          textRendering: "optimizeLegibility",
+        }}
+      >
+        {/* Chat Content - Scrollable */}
+        <div
+          ref={chatContentRef}
+          className="chat-content anti-ghost"
+          style={{
+            flex: 1,
+            overflowY: "auto",
+            paddingRight: "8px",
+            marginBottom: "16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+            scrollBehavior: "smooth",
+            // Force complete background clearing
+            backgroundColor: "transparent",
+            background: "transparent",
+            // Remove willChange property that can cause text ghosting
+            // willChange: "scroll-position",
+          }}
+        >
+          {/* Question Display */}
+          {question && (
+            <div
+              style={{
+                backgroundColor: "rgba(59, 130, 246, 0.25)",
+                borderRadius: "12px",
+                padding: "12px 16px",
+                border: "1px solid rgba(59, 130, 246, 0.4)",
+                marginBottom: "16px",
+                alignSelf: "flex-end",
+                maxWidth: "80%",
+                // Anti-ghosting measures
+                transform: "translateZ(0)",
+                backfaceVisibility: "hidden",
+                isolation: "isolate",
+                position: "relative",
+                zIndex: 2,
+              }}
+            >
+              <p
+                style={{
+                  color: "#ffffff",
+                  fontSize: "14px",
+                  margin: 0,
+                  fontWeight: "500",
+                  lineHeight: "1.4",
+                }}
+              >
+                {question}
+              </p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div
+              style={{
+                backgroundColor: "rgba(0, 0, 0, 0.2)",
+                borderRadius: "12px",
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                alignSelf: "flex-start",
+                maxWidth: "80%",
+                // Removed boxShadow to prevent rendering issues
+              }}
+            >
+              {/* Animated dots */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "3px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "4px",
+                    height: "4px",
+                    borderRadius: "50%",
+                    backgroundColor: "#3b82f6",
+                    animation: "pulse 1.4s ease-in-out infinite both",
+                  }}
+                ></div>
+                <div
+                  style={{
+                    width: "4px",
+                    height: "4px",
+                    borderRadius: "50%",
+                    backgroundColor: "#3b82f6",
+                    animation: "pulse 1.4s ease-in-out infinite both 0.2s",
+                  }}
+                ></div>
+                <div
+                  style={{
+                    width: "4px",
+                    height: "4px",
+                    borderRadius: "50%",
+                    backgroundColor: "#3b82f6",
+                    animation: "pulse 1.4s ease-in-out infinite both 0.4s",
+                  }}
+                ></div>
+              </div>
+              <p
+                style={{
+                  color: "#a1a1aa",
+                  margin: 0,
+                  fontSize: "13px",
+                  fontWeight: "400",
+                  letterSpacing: "0.3px",
+                }}
+              >
+                Thinking...
+              </p>
+            </div>
+          )}
+
+          {/* Response Section */}
+          {!isLoading && response && (
+            <div
+              style={{
+                backgroundColor: "rgba(0, 0, 0, 0.25)",
+                borderRadius: "12px",
+                padding: "16px",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+                alignSelf: "flex-start",
+                maxWidth: "80%",
+                // Anti-ghosting measures
+                transform: "translateZ(0)",
+                backfaceVisibility: "hidden",
+                isolation: "isolate",
+                position: "relative",
+                zIndex: 2,
+              }}
+            >
+              <ResponseSection response={response} isCopied={isCopied} />
+            </div>
+          )}
+
+          {/* Context Display */}
+          {context && (
+            <div
+              onMouseEnter={() => setIsHovering(true)}
+              onMouseLeave={() => setIsHovering(false)}
+              onClick={() => {
+                const norm = normalizeContext(context);
+                setLastClearedContext(norm);
+                lastClearedRef.current = norm;
+                setContext("");
+              }}
+              style={{
+                cursor: "pointer",
+                borderRadius: "8px",
+                padding: "12px 16px",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 12,
+                backgroundColor: isHovering
+                  ? "rgba(255, 255, 255, 0.08)"
+                  : "rgba(255, 255, 255, 0.04)",
+                border: `1px solid ${
+                  isHovering
+                    ? "rgba(255, 255, 255, 0.15)"
+                    : "rgba(255, 255, 255, 0.08)"
+                }`,
+                transition: "all 200ms ease",
+                marginBottom: "16px",
+                alignSelf: "flex-start",
+                maxWidth: "90%",
+                minWidth: "200px",
+              }}
+            >
+              {isHovering ? (
+                <X
+                  size={16}
+                  style={{ color: "#ffffff", marginTop: "2px", flexShrink: 0 }}
+                />
+              ) : (
+                <FileText
+                  size={16}
+                  style={{ color: "#a1a1aa", marginTop: "2px", flexShrink: 0 }}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p
+                  style={{
+                    fontSize: 13,
+                    color: "#e4e4e7",
+                    margin: 0,
+                    fontWeight: "400",
+                    lineHeight: "1.4",
+                    wordWrap: "break-word",
+                    overflowWrap: "break-word",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {context.length > 150 ? truncate(context, 150) : context}
+                  {screenshotData && (
+                    <span
+                      style={{
+                        color: "#4ade80",
+                        marginLeft: "6px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      📸
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Input Field - Fixed at bottom */}
+        <div
+          style={{
+            backgroundColor: "rgba(0, 0, 0, 0.2)",
+            borderRadius: "12px",
+            padding: "4px",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            transition: "all 200ms ease",
+            flexShrink: 0,
+          }}
+        >
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyPress}
+            placeholder="What's on your mind?"
+            autoFocus
+            style={{
+              width: "100%",
+              backgroundColor: "transparent",
+              border: "none",
+              outline: "none",
+              padding: "12px 16px",
+              fontSize: "14px",
+              color: "#ffffff",
+              fontWeight: "400",
+              borderRadius: "8px",
+            }}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 

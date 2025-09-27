@@ -21,21 +21,23 @@ body {
   user-select: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
+  /* Aggressive anti-ghosting measures */
+  text-rendering: optimizeLegibility;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+  /* Force hardware acceleration */
+  transform: translateZ(0);
+  /* Additional anti-ghosting */
+  -webkit-transform: translate3d(0, 0, 0);
+  isolation: isolate;
+  /* Force repaint on every frame */
+  will-change: transform;
   color: white;
 }
 
-main {
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.8);
-  border-radius: 15px;
-  backdrop-filter: blur(10px);
-  max-width: 450px;
-  margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
+/* Remove the old main styling as it's now handled inline */
 
 p {
   line-height: 1.5;
@@ -49,17 +51,7 @@ h1 {
   align-items: center;
 }
 
-input {
-  width: 100%;
-  max-width: 400px;
-  padding: 15px;
-  border-radius: 10px;
-  font-size: 15px;
-  border: none;
-  outline: none;
-  background: rgba(8, 8, 8, 0.485);
-  color: white;
-}
+/* Input styling is now handled inline for better control */
 
 button {
   transition: all 0.15s ease;
@@ -84,10 +76,11 @@ span {
 /* Input field enhancements */
 input::placeholder {
   transition: opacity 0.2s ease;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 input:focus::placeholder {
-  opacity: 0.6;
+  opacity: 0.3;
 }
 
 /* Keyboard shortcut styling */
@@ -124,6 +117,14 @@ kbd.size-inc {
   max-height: 400px;
   overflow-y: auto;
   padding-right: 8px;
+  /* Prevent text ghosting during scroll */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  /* Ensure proper text rendering */
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Custom scrollbar styling */
@@ -145,6 +146,58 @@ kbd.size-inc {
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* Chat scrollbar styling - Aggressive anti-ghosting */
+.chat-content {
+  /* Improve scrolling performance */
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  /* Aggressive anti-ghosting measures */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Force hardware acceleration */
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  perspective: 1000px;
+  -webkit-perspective: 1000px;
+  /* Force repaint on scroll */
+  will-change: transform;
+  /* Ensure proper layer creation */
+  position: relative;
+  z-index: 1;
+  /* Additional anti-ghosting */
+  isolation: isolate;
+  /* Force GPU layer */
+  -webkit-transform: translateZ(0);
+  /* Prevent text selection issues */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* Force repaint on every scroll */
+  contain: layout;
+}
+
+.chat-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-content::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.chat-content::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.chat-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
 /* Loading spinner */
 @keyframes spin {
   to {
@@ -156,6 +209,20 @@ kbd.size-inc {
   animation: spin 1s linear infinite;
 }
 
+/* Pulse animation for thinking dots */
+@keyframes pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 /* Selection styling */
 ::selection {
   background: rgba(115, 115, 115, 0.3);
@@ -165,12 +232,92 @@ kbd.size-inc {
   background: rgba(115, 115, 115, 0.3);
 }
 
+/* Global anti-ghosting for all text elements */
+p,
+div,
+span,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+li,
+ul,
+ol,
+strong,
+em,
+code,
+pre {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  /* Additional anti-ghosting measures */
+  isolation: isolate;
+  position: relative;
+  z-index: 1;
+  /* Force GPU acceleration */
+  will-change: transform;
+  /* Prevent text persistence */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Specific anti-ghosting class for scrollable content */
+.anti-ghost {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  isolation: isolate;
+  position: relative;
+  z-index: 1;
+  /* Force repaint on scroll */
+  will-change: transform;
+  /* Ensure proper layer creation */
+  -webkit-perspective: 1000px;
+  perspective: 1000px;
+  /* Additional anti-ghosting measures */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* Prevent text selection issues */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* Force complete repaint */
+  contain: layout;
+  /* Additional GPU acceleration */
+  -webkit-transform: translateZ(0);
+  /* Force layer creation */
+  opacity: 0.999;
+  /* Disable all rendering optimizations that might cause ghosting */
+  -webkit-transform-style: flat;
+  transform-style: flat;
+}
+
+/* Force repaint on all child elements */
+.anti-ghost * {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  -webkit-transform: translate3d(0, 0, 0);
+  will-change: transform;
+}
+
 /* Markdown Styling - All white text */
 .markdown-p {
   margin-bottom: 16px;
   color: white;
   font-size: 14px;
   line-height: 1.6;
+  /* Prevent text ghosting */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .markdown-h1 {
@@ -226,6 +373,10 @@ kbd.size-inc {
   font-size: 14px;
   padding-left: 4px;
   margin-bottom: 4px;
+  /* Prevent text ghosting */
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
 .markdown-code-block {
@@ -288,7 +439,7 @@ kbd.size-inc {
 }
 
 .markdown-tbody {
-  /* no specific styles */
+  background-color: transparent;
 }
 
 .markdown-tr {
