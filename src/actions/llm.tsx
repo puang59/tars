@@ -23,8 +23,6 @@ export async function sendMessage(context: string, userInput: string) {
     ],
   };
 
-  console.log("System Instruction:", textPrompt(context));
-
   const finalMessages = [systemInstruction, ...messages];
 
   try {
