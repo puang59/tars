@@ -3,6 +3,8 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use screenshots::Screen;
 use base64::Engine;
+use aws_sdk_dynamodb::{Client as DynamoDbClient, types::AttributeValue};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize)]
 struct Message {
@@ -20,6 +22,15 @@ struct MessagePart {
 struct InlineData {
     mime_type: String,
     data: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct ConversationData {
+    question: String,
+    response: String,
+    context: String,
+    timestamp: String,
+    mode: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -211,6 +222,52 @@ async fn send_screenshot_to_gemini(prompt: String) -> Result<String, String> {
         .ok_or_else(|| format!("No response from Gemini. Full response: {}", response_text))
 }
 
+#[tauri::command]
+async fn store_conversation(conversation_data: ConversationData) -> Result<String, String> {
+    println!("📝 Storing conversation:");
+    println!("  Question: {}", conversation_data.question);
+    println!("  Response: {}", conversation_data.response);
+    println!("  Context: {}", conversation_data.context);
+    println!("  Timestamp: {}", conversation_data.timestamp);
+    println!("  Mode: {}", conversation_data.mode);
+    
+    // Initialize AWS DynamoDB client with explicit region
+    let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+    let dynamodb_config = aws_sdk_dynamodb::config::Builder::from(&config)
+        .region(aws_sdk_dynamodb::config::Region::new("us-east-1"))
+        .build();
+    let client = DynamoDbClient::from_conf(dynamodb_config);
+    
+    let id = Uuid::new_v4().to_string();
+    
+    // Prepare item for DynamoDB
+    let mut item = std::collections::HashMap::new();
+    item.insert("id".to_string(), AttributeValue::S(id.clone()));
+    item.insert("question".to_string(), AttributeValue::S(conversation_data.question));
+    item.insert("response".to_string(), AttributeValue::S(conversation_data.response));
+    item.insert("context".to_string(), AttributeValue::S(conversation_data.context));
+    item.insert("timestamp".to_string(), AttributeValue::S(conversation_data.timestamp));
+    item.insert("mode".to_string(), AttributeValue::S(conversation_data.mode));
+    
+    // Store in DynamoDB
+    let request = client
+        .put_item()
+        .table_name("tars-conversations")
+        .set_item(Some(item));
+    
+    match request.send().await {
+        Ok(response) => {
+            println!("✅ Conversation stored in DynamoDB with ID: {}", id);
+            println!("📊 DynamoDB Response: {:?}", response);
+            Ok(format!("Conversation stored with ID: {}", id))
+        }
+        Err(e) => {
+            println!("❌ Error storing in DynamoDB: {}", e);
+            println!("🔍 Error details: {:?}", e);
+            Err(format!("Failed to store in DynamoDB: {}", e))
+        }
+    }
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -225,7 +282,8 @@ pub fn run() {
             send_message_to_gemini,
             take_screenshot,
             screenshot_and_show_window,
-            send_screenshot_to_gemini
+            send_screenshot_to_gemini,
+            store_conversation
         ])
         .setup(|_app| {
             Ok(())

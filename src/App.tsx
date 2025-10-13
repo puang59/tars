@@ -6,6 +6,7 @@ import { FileText, X } from "lucide-react";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import ResponseSection from "./components/ResponseSection";
 import { fetchClipboard } from "./utils/clipboard";
+import StoreToDB from "./components/StoreToDB";
 
 // Removed unused globalShortcut constant
 
@@ -371,6 +372,27 @@ function App() {
             }}
           >
             TARS
+          </div>
+          <div
+            className="flex flex-row items-center gap-1.5 text-gray-400"
+            style={{
+              marginLeft: "18px",
+            }}
+          >
+            |{" "}
+            <StoreToDB
+              conversationData={
+                question || response
+                  ? {
+                      question: question || "",
+                      response: response || "",
+                      context: context || "",
+                      timestamp: new Date().toISOString(),
+                      mode: currentMode,
+                    }
+                  : undefined
+              }
+            />
           </div>
         </div>
 

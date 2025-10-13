@@ -30,4 +30,7 @@ dotenv = "0.15"
 screenshots = "0.8"
 base64 = "0.22"
 png = "0.17"
+aws-sdk-dynamodb = "1.0"
+aws-config = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
 
