@@ -29,6 +29,7 @@ function App() {
   const lastClearedRef = useRef("");
   const lastAcceptedRef = useRef("");
   const chatContentRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const normalizeContext = (text: string) =>
     text.normalize("NFC").replace(/\s+/g, " ").trim();
@@ -85,6 +86,11 @@ function App() {
       if (document.hidden) {
         // Only clear loading state when window is hidden
         setIsLoading(false);
+      } else {
+        // When window becomes visible, focus input
+        setTimeout(() => {
+          inputRef.current?.focus();
+        }, 100);
       }
     };
 
@@ -343,14 +349,13 @@ function App() {
       {/* Top Control Bar */}
       <div
         style={{
-          backgroundColor: "rgba(0, 0, 0, 0.25)",
-          borderRadius: "8px",
+          backgroundColor: "rgba(0, 0, 0, 0.6)",
+          borderRadius: "16px",
           padding: "8px 16px",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          // Removed boxShadow to prevent rendering issues
+          border: "none",
         }}
       >
         {/* Left side - TARS branding */}
@@ -361,14 +366,15 @@ function App() {
             gap: "8px",
           }}
         >
-          <div
+          <img
+            src="/TarsLogo.png"
+            alt="TARS Logo"
             style={{
-              width: "8px",
-              height: "8px",
+              width: "20px",
+              height: "20px",
               borderRadius: "50%",
-              backgroundColor: "#3b82f6",
             }}
-          ></div>
+          />
           <div
             style={{
               fontWeight: "600",
@@ -454,11 +460,10 @@ function App() {
       <div
         key={`main-content-${forceRefresh}`}
         style={{
-          backgroundColor: "rgba(0, 0, 0, 0.15)",
-          borderRadius: "16px",
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+          borderRadius: "24px",
           padding: "20px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
-          // Removed boxShadow to prevent rendering issues
+          border: "none",
           flex: 1,
           display: "flex",
           flexDirection: "column",
@@ -503,10 +508,10 @@ function App() {
           {question && (
             <div
               style={{
-                backgroundColor: "rgba(59, 130, 246, 0.25)",
-                borderRadius: "12px",
+                backgroundColor: "rgba(59, 130, 246, 0.3)",
+                borderRadius: "18px",
                 padding: "12px 16px",
-                border: "1px solid rgba(59, 130, 246, 0.4)",
+                border: "none",
                 marginBottom: "16px",
                 alignSelf: "flex-end",
                 maxWidth: "80%",
@@ -536,16 +541,15 @@ function App() {
           {isLoading && (
             <div
               style={{
-                backgroundColor: "rgba(0, 0, 0, 0.2)",
-                borderRadius: "12px",
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                borderRadius: "18px",
                 padding: "12px 16px",
                 display: "flex",
                 alignItems: "center",
                 gap: "10px",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                border: "none",
                 alignSelf: "flex-start",
                 maxWidth: "80%",
-                // Removed boxShadow to prevent rendering issues
               }}
             >
               {/* Animated dots */}
@@ -602,10 +606,10 @@ function App() {
           {!isLoading && response && (
             <div
               style={{
-                backgroundColor: "rgba(0, 0, 0, 0.25)",
-                borderRadius: "12px",
+                backgroundColor: "rgba(0, 0, 0, 0.5)",
+                borderRadius: "18px",
                 padding: "16px",
-                border: "1px solid rgba(255, 255, 255, 0.15)",
+                border: "none",
                 alignSelf: "flex-start",
                 maxWidth: "80%",
                 // Anti-ghosting measures
@@ -633,19 +637,15 @@ function App() {
               }}
               style={{
                 cursor: "pointer",
-                borderRadius: "8px",
+                borderRadius: "16px",
                 padding: "12px 16px",
                 display: "flex",
                 alignItems: "flex-start",
                 gap: 12,
                 backgroundColor: isHovering
-                  ? "rgba(255, 255, 255, 0.08)"
-                  : "rgba(255, 255, 255, 0.04)",
-                border: `1px solid ${
-                  isHovering
-                    ? "rgba(255, 255, 255, 0.15)"
-                    : "rgba(255, 255, 255, 0.08)"
-                }`,
+                  ? "rgba(255, 255, 255, 0.15)"
+                  : "rgba(255, 255, 255, 0.08)",
+                border: "none",
                 transition: "all 200ms ease",
                 marginBottom: "16px",
                 alignSelf: "flex-start",
@@ -698,10 +698,10 @@ function App() {
         {/* Input Field - Fixed at bottom */}
         <div
           style={{
-            backgroundColor: "rgba(0, 0, 0, 0.2)",
-            borderRadius: "12px",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            borderRadius: "18px",
             padding: "4px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            border: "none",
             transition: "all 200ms ease",
             flexShrink: 0,
           }}
@@ -713,6 +713,7 @@ function App() {
             onKeyDown={handleKeyPress}
             placeholder="What's on your mind?"
             autoFocus
+            ref={inputRef}
             style={{
               width: "100%",
               backgroundColor: "transparent",
@@ -722,7 +723,7 @@ function App() {
               fontSize: "14px",
               color: "#ffffff",
               fontWeight: "400",
-              borderRadius: "8px",
+              borderRadius: "14px",
             }}
           />
         </div>

@@ -63,7 +63,7 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
             style={{
               position: "fixed",
               inset: 0,
-              zIndex: 999,
+              zIndex: 9999,
             }}
           />
 
@@ -74,11 +74,13 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
               top: "calc(100% + 4px)",
               left: 0,
               backgroundColor: "rgba(0, 0, 0, 0.95)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
               border: "1px solid rgba(255, 255, 255, 0.15)",
               borderRadius: "8px",
               padding: "6px",
               minWidth: "200px",
-              zIndex: 1000,
+              zIndex: 10000,
               boxShadow: "0 8px 24px rgba(0, 0, 0, 0.4)",
             }}
           >
