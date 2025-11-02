@@ -4,6 +4,8 @@ import { textPrompt } from "../utils/prompts";
 
 const conversationManager = new ConversationManager();
 
+// Note: UI allows model selection, but backend always uses gemini-2.5-flash-lite-preview-06-17
+// To enable model switching, add modelId parameter and update backend to accept it
 export async function sendMessage(context: string, userInput: string) {
   conversationManager.addMessage("user", userInput);
 

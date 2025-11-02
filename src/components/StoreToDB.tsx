@@ -8,6 +8,7 @@ interface StoreToDBProps {
     context: string;
     timestamp: string;
     mode: "clipboard" | "screenshot";
+    model?: string;
   };
 }
 

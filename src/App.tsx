@@ -7,6 +7,7 @@ import { writeText } from "@tauri-apps/plugin-clipboard-manager";
 import ResponseSection from "./components/ResponseSection";
 import { fetchClipboard } from "./utils/clipboard";
 import StoreToDB from "./components/StoreToDB";
+import ModelSelector from "./components/ModelSelector";
 
 // Removed unused globalShortcut constant
 
@@ -24,6 +25,7 @@ function App() {
     "clipboard"
   );
   const [forceRefresh, setForceRefresh] = useState(0);
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
   const lastClearedRef = useRef("");
   const lastAcceptedRef = useRef("");
   const chatContentRef = useRef<HTMLDivElement>(null);
@@ -171,17 +173,18 @@ function App() {
 
   const handleSubmit = async () => {
     if (!inputValue.trim()) return;
+
+    const userMessage = inputValue;
+    setInputValue(""); // Clear immediately
     let response: string = "";
 
     try {
       setIsLoading(true);
       response = await sendMessageWithContext(
         context,
-        inputValue,
+        userMessage,
         screenshotData
       );
-
-      setInputValue("");
     } catch (error) {
       console.error("Failed to submit:", error);
     } finally {
@@ -193,6 +196,8 @@ function App() {
 
   const handleScreenshotAnalysis = async (prompt: string) => {
     if (!prompt.trim()) return;
+
+    setInputValue(""); // Clear immediately
     let response: string = "";
 
     try {
@@ -380,6 +385,13 @@ function App() {
             }}
           >
             |{" "}
+            <ModelSelector
+              onModelChange={(modelId) => {
+                console.log("🔄 Model changed to:", modelId);
+                setSelectedModel(modelId);
+              }}
+            />{" "}
+            |{" "}
             <StoreToDB
               conversationData={
                 question || response
@@ -389,6 +401,7 @@ function App() {
                       context: context || "",
                       timestamp: new Date().toISOString(),
                       mode: currentMode,
+                      model: selectedModel,
                     }
                   : undefined
               }

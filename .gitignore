@@ -7,10 +7,27 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+bun.lockb
+
+# Build outputs
 dist
 dist-ssr
 *.local
+
+# Rust build artifacts
+src-tauri/target/
+target/
+
+# Tauri build outputs
+src-tauri/target/debug/bundle/
+src-tauri/target/release/bundle/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
 
 # Editor directories and files
 .vscode/*
@@ -23,6 +40,11 @@ dist-ssr
 *.sln
 *.sw?
 
-.env
-prompts.ts
-bun.lockb
+# OS files
+Thumbs.db
+.DS_Store
+
+# IDE
+*.swp
+*.swo
+*~
