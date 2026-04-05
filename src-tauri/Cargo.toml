@@ -33,4 +33,7 @@ png = "0.17"
 aws-sdk-dynamodb = "1.0"
 aws-config = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
+llama-cpp-2 = "0.1.0"
+dirs = "5.0"
+lazy_static = "1.4"
 

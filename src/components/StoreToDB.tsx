@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { storeConversationInSupabase } from "../lib/supabase";
+import { getUserId } from "../utils/userIdentifier";
 
 interface StoreToDBProps {
   conversationData?: {
@@ -36,10 +37,18 @@ export default function StoreToDB({ conversationData }: StoreToDBProps) {
       localStorage.setItem("tars-conversations", JSON.stringify(newData));
       console.log("💾 Stored in localStorage:", newData.length, "items");
 
-      // Store in DynamoDB via Tauri command
-      console.log("🚀 Calling Tauri store_conversation...");
-      const result = await invoke("store_conversation", { conversationData });
-      console.log("✅ Tauri result:", result);
+      // Store in Supabase
+      console.log("🚀 Storing in Supabase...");
+      const userId = getUserId();
+      const result = await storeConversationInSupabase({
+        user_id: userId,
+        question: conversationData.question,
+        response: conversationData.response,
+        context: conversationData.context,
+        mode: conversationData.mode,
+        model: conversationData.model || "gemini-2.5-flash",
+      });
+      console.log("✅ Supabase result:", result);
 
       console.log("🎉 Conversation stored successfully");
     } catch (error) {

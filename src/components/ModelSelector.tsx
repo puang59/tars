@@ -1,24 +1,36 @@
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-const MODELS = [
-  { id: "gemini-2.5-flash", name: "Gemini 2.5 Flash", free: true },
-  { id: "grok-4-fast", name: "Grok 4 Fast", free: true },
-  { id: "grok-3-mini", name: "Grok 3 Mini", free: true },
-  { id: "qwen-3-32b", name: "Qwen 3 32B", free: false },
-  { id: "qwen-3-vl-8b", name: "Qwen 3 VL 8B", free: false },
-  { id: "qwen-3-4b", name: "Qwen 3 4B", free: true },
+const GROQ_MODELS = [
+  { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", free: false },
+  { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", free: true },
+  { id: "openai/gpt-oss-120b", name: "GPT OSS 120B", free: false },
+  { id: "qwen/qwen3-32b", name: "Qwen 3 (Preview)", free: true },
+  { id: "meta-llama/llama-4-scout-17b-16e-instruct", name: "Llama 4 Scout", free: true },
+];
+
+const LOCAL_MODELS = [
+  { id: "qwen2.5-coder-1.5b-instruct-q4_k_m.gguf", name: "Qwen 2.5 Coder (Local)", free: true },
+  { id: "Phi-4-mini-instruct-Q4_K_M.gguf", name: "Phi-4 Mini (Local)", free: true },
 ];
 
 interface ModelSelectorProps {
   onModelChange?: (modelId: string) => void;
+  isLocal?: boolean;
 }
 
-export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
+export default function ModelSelector({ onModelChange, isLocal = false }: ModelSelectorProps) {
+  const models = isLocal ? LOCAL_MODELS : GROQ_MODELS;
   const [isOpen, setIsOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState(MODELS[0]);
+  const [selectedModel, setSelectedModel] = useState(models[0]);
 
-  const handleModelSelect = (model: (typeof MODELS)[0]) => {
+  // Update selected model when switching between local/remote if necessary
+  useEffect(() => {
+    setSelectedModel(models[0]);
+    onModelChange?.(models[0].id);
+  }, [isLocal]);
+
+  const handleModelSelect = (model: (typeof GROQ_MODELS)[0]) => {
     setSelectedModel(model);
     onModelChange?.(model.id);
     setIsOpen(false);
@@ -92,9 +104,9 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
                 fontWeight: "500",
               }}
             >
-              Free Models
+              {isLocal ? "Local Models" : "Free Models"}
             </div>
-            {MODELS.filter((m) => m.free).map((model) => (
+            {models.filter((m: any) => m.free).map((model: any) => (
               <button
                 key={model.id}
                 onClick={() => handleModelSelect(model)}
@@ -135,64 +147,68 @@ export default function ModelSelector({ onModelChange }: ModelSelectorProps) {
               </button>
             ))}
 
-            <div
-              style={{
-                height: "1px",
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
-                margin: "6px 0",
-              }}
-            />
+            {!isLocal && (
+              <>
+                <div
+                  style={{
+                    height: "1px",
+                    backgroundColor: "rgba(255, 255, 255, 0.1)",
+                    margin: "6px 0",
+                  }}
+                />
 
-            <div
-              style={{
-                fontSize: "11px",
-                color: "#a1a1aa",
-                padding: "6px 10px",
-                fontWeight: "500",
-              }}
-            >
-              Premium Models
-            </div>
-            {MODELS.filter((m) => !m.free).map((model) => (
-              <button
-                key={model.id}
-                onClick={() => handleModelSelect(model)}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "8px 10px",
-                  backgroundColor:
-                    selectedModel.id === model.id
-                      ? "rgba(59, 130, 246, 0.2)"
-                      : "transparent",
-                  border: "none",
-                  borderRadius: "6px",
-                  color: "#ffffff",
-                  fontSize: "13px",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                  textAlign: "left",
-                }}
-                onMouseEnter={(e) => {
-                  if (selectedModel.id !== model.id) {
-                    e.currentTarget.style.backgroundColor =
-                      "rgba(255, 255, 255, 0.08)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (selectedModel.id !== model.id) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                  }
-                }}
-              >
-                {model.name}
-                {selectedModel.id === model.id && (
-                  <span style={{ color: "#3b82f6" }}>✓</span>
-                )}
-              </button>
-            ))}
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#a1a1aa",
+                    padding: "6px 10px",
+                    fontWeight: "500",
+                  }}
+                >
+                  Premium Models
+                </div>
+                {models.filter((m: any) => !m.free).map((model: any) => (
+                  <button
+                    key={model.id}
+                    onClick={() => handleModelSelect(model)}
+                    style={{
+                      width: "100%",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "8px 10px",
+                      backgroundColor:
+                        selectedModel.id === model.id
+                          ? "rgba(59, 130, 246, 0.2)"
+                          : "transparent",
+                      border: "none",
+                      borderRadius: "6px",
+                      color: "#ffffff",
+                      fontSize: "13px",
+                      cursor: "pointer",
+                      transition: "all 0.2s",
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedModel.id !== model.id) {
+                        e.currentTarget.style.backgroundColor =
+                          "rgba(255, 255, 255, 0.08)";
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedModel.id !== model.id) {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }
+                    }}
+                  >
+                    {model.name}
+                    {selectedModel.id === model.id && (
+                      <span style={{ color: "#3b82f6" }}>✓</span>
+                    )}
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         </>
       )}

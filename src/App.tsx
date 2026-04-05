@@ -8,6 +8,10 @@ import ResponseSection from "./components/ResponseSection";
 import { fetchClipboard } from "./utils/clipboard";
 import StoreToDB from "./components/StoreToDB";
 import ModelSelector from "./components/ModelSelector";
+import {
+  ClipboardMonitor,
+  isContextSeekingQuestion,
+} from "./utils/clipboardMonitor";
 
 // Removed unused globalShortcut constant
 
@@ -25,11 +29,14 @@ function App() {
     "clipboard"
   );
   const [forceRefresh, setForceRefresh] = useState(0);
-  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash");
+  const [selectedModel, setSelectedModel] = useState("llama-3.1-8b-instant");
+  const [isLocal, setIsLocal] = useState(false);
   const lastClearedRef = useRef("");
   const lastAcceptedRef = useRef("");
   const chatContentRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const clipboardMonitorRef = useRef<ClipboardMonitor | null>(null);
+  const [latestClipboard, setLatestClipboard] = useState("");
 
   const normalizeContext = (text: string) =>
     text.normalize("NFC").replace(/\s+/g, " ").trim();
@@ -55,6 +62,25 @@ function App() {
   useEffect(() => {
     console.log("Loading state: ", isLoading);
   }, [isLoading]);
+
+  // Initialize clipboard monitor
+  useEffect(() => {
+    const monitor = new ClipboardMonitor();
+    clipboardMonitorRef.current = monitor;
+
+    // Start monitoring clipboard changes
+    monitor.start(1000, (clipboardContent) => {
+      console.log(
+        "📋 Clipboard updated:",
+        clipboardContent.substring(0, 50) + "..."
+      );
+      setLatestClipboard(clipboardContent);
+    });
+
+    return () => {
+      monitor.stop();
+    };
+  }, []);
 
   // Anti-ghosting: Force repaint on scroll
   useEffect(() => {
@@ -184,11 +210,23 @@ function App() {
     setInputValue(""); // Clear immediately
     let response: string = "";
 
+    // Check if this is a context-seeking question
+    let contextToUse = context;
+    if (isContextSeekingQuestion(userMessage) && !context && latestClipboard) {
+      console.log(
+        "🎯 Context-seeking question detected, using latest clipboard"
+      );
+      contextToUse = latestClipboard;
+      setContext(latestClipboard); // Update UI to show context
+    }
+
     try {
       setIsLoading(true);
       response = await sendMessageWithContext(
-        context,
+        selectedModel,
+        contextToUse,
         userMessage,
+        isLocal,
         screenshotData
       );
     } catch (error) {
@@ -208,7 +246,7 @@ function App() {
 
     try {
       setIsLoading(true);
-      response = await invoke("send_screenshot_to_gemini", { prompt });
+      response = await invoke("send_screenshot_to_groq", { prompt });
       setResponse(response);
     } catch (error) {
       console.error("Failed to analyze screenshot:", error);
@@ -218,23 +256,25 @@ function App() {
   };
 
   const sendMessageWithContext = async (
+    model: string,
     context: string,
     userInput: string,
+    isLocal: boolean,
     screenshotData?: Uint8Array | null
   ): Promise<string> => {
-    console.log("🚀 sendMessageWithContext called");
+    console.log("🚀 sendMessageWithContext called, isLocal:", isLocal);
     console.log("📝 Context:", context.substring(0, 100) + "...");
     console.log("💬 User input:", userInput);
     console.log("📸 Screenshot data available:", !!screenshotData);
 
     if (screenshotData && screenshotData.length > 0) {
-      console.log("📸 Sending screenshot + text to Gemini");
-      return (await invoke("send_screenshot_to_gemini", {
+      console.log("📸 Sending screenshot + text to Groq (Local not supported for images yet)");
+      return (await invoke("send_screenshot_to_groq", {
         prompt: `Context from clipboard: ${context}\n\nUser question: ${userInput}`,
       })) as string;
     } else {
-      console.log("💬 Sending text-only to Gemini");
-      return await sendMessage(context, userInput);
+      console.log("💬 Sending text-only to", isLocal ? "Local" : "Groq");
+      return await sendMessage(model, context, userInput, isLocal);
     }
   };
 
@@ -356,6 +396,8 @@ function App() {
           alignItems: "center",
           justifyContent: "space-between",
           border: "none",
+          position: "relative",
+          zIndex: 10,
         }}
       >
         {/* Left side - TARS branding */}
@@ -392,11 +434,28 @@ function App() {
           >
             |{" "}
             <ModelSelector
+              isLocal={isLocal}
               onModelChange={(modelId) => {
                 console.log("🔄 Model changed to:", modelId);
                 setSelectedModel(modelId);
               }}
             />{" "}
+            |{" "}
+            <div className="flex items-center gap-1.5 ml-2">
+              <label 
+                className="text-[10px] uppercase tracking-wider text-gray-500 font-bold cursor-pointer"
+                htmlFor="local-mode"
+              >
+                Local
+              </label>
+              <input 
+                id="local-mode"
+                type="checkbox" 
+                checked={isLocal}
+                onChange={(e) => setIsLocal(e.target.checked)}
+                className="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-blue-600 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+              />
+            </div>
             |{" "}
             <StoreToDB
               conversationData={

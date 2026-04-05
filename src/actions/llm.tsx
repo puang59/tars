@@ -4,33 +4,43 @@ import { textPrompt } from "../utils/prompts";
 
 const conversationManager = new ConversationManager();
 
-// Note: UI allows model selection, but backend always uses gemini-2.5-flash-lite-preview-06-17
-// To enable model switching, add modelId parameter and update backend to accept it
-export async function sendMessage(context: string, userInput: string) {
+// Note: UI allows model selection, we will pass model down if needed. Defaulting to llama-3.1-8b-instant.
+export async function sendMessage(model: string, context: string, userInput: string, isLocal: boolean = false) {
   conversationManager.addMessage("user", userInput);
 
   const history = conversationManager.getHistory();
 
   const messages = history.map((msg) => ({
-    role: msg.role === "tars" ? "model" : msg.role,
-    parts: msg.parts,
+    role: msg.role === "tars" ? "assistant" : "user",
+    content: msg.parts.map(p => p.text).join(""),
   }));
 
   const systemInstruction = {
-    role: "model",
-    parts: [
-      {
-        text: textPrompt(context),
-      },
-    ],
+    role: "system",
+    content: textPrompt(context),
   };
 
   const finalMessages = [systemInstruction, ...messages];
 
   try {
-    const response = await invoke("send_message_to_gemini", {
-      messages: finalMessages,
-    });
+    let response: string;
+    
+    if (isLocal) {
+      console.log("🤖 Sending message to local model:", model);
+      // Construct prompt for local model (simplified)
+      // Use ChatML format for better instruction following and turn-taking
+      const localPrompt = `<|im_start|>system\n${systemInstruction.content}<|im_end|>\n<|im_start|>user\n${userInput}<|im_end|>\n<|im_start|>assistant\n`;
+      response = await invoke("send_message_locally", {
+        modelName: model, // This should be the filename
+        prompt: localPrompt,
+      });
+    } else {
+      console.log("🌐 Sending message to Groq:", model);
+      response = await invoke("send_message_to_groq", {
+        model: model || "llama-3.1-8b-instant",
+        messages: finalMessages,
+      });
+    }
 
     conversationManager.addMessage("tars", response as string);
 

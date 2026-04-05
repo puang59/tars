@@ -1,27 +1,44 @@
 use tauri::Manager;
 use serde::{Deserialize, Serialize};
 use std::env;
+use lazy_static::lazy_static;
 use screenshots::Screen;
 use base64::Engine;
 use aws_sdk_dynamodb::{Client as DynamoDbClient, types::AttributeValue};
 use uuid::Uuid;
+use std::sync::{Mutex, Arc};
+use llama_cpp_2::model::params::LlamaModelParams;
+use llama_cpp_2::context::params::LlamaContextParams;
+use llama_cpp_2::llama_backend::LlamaBackend;
+use llama_cpp_2::model::{LlamaModel, Special};
+use llama_cpp_2::llama_batch::LlamaBatch;
+use dirs;
 
 #[derive(Serialize, Deserialize)]
-struct Message {
+struct GroqMessage {
     role: String,
-    parts: Vec<MessagePart>,
+    content: serde_json::Value,
 }
 
 #[derive(Serialize, Deserialize)]
-struct MessagePart {
-    text: Option<String>,
-    inline_data: Option<InlineData>,
+struct GroqRequest {
+    model: String,
+    messages: Vec<GroqMessage>,
 }
 
 #[derive(Serialize, Deserialize)]
-struct InlineData {
-    mime_type: String,
-    data: String,
+struct GroqResponse {
+    choices: Vec<Choice>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct Choice {
+    message: GroqMessageResponse,
+}
+
+#[derive(Serialize, Deserialize)]
+struct GroqMessageResponse {
+    content: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -33,45 +50,24 @@ struct ConversationData {
     mode: String,
 }
 
-#[derive(Serialize, Deserialize)]
-struct GeminiRequest {
-    contents: Vec<Message>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct GeminiResponse {
-    candidates: Vec<Candidate>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct Candidate {
-    content: Content,
-}
-
-#[derive(Serialize, Deserialize)]
-struct Content {
-    parts: Vec<MessagePart>,
-}
-
 #[tauri::command]
-async fn send_message_to_gemini(messages: Vec<Message>) -> Result<String, String> {
+async fn send_message_to_groq(model: String, messages: Vec<GroqMessage>) -> Result<String, String> {
     // Get API key from environment variable
-    let api_key = env::var("GOOGLE_API_KEY")
-        .map_err(|_| "GOOGLE_API_KEY environment variable not set".to_string())?;
+    let api_key = env::var("GROQ_API_KEY")
+        .map_err(|_| "GROQ_API_KEY environment variable not set".to_string())?;
     
     let client = reqwest::Client::new();
     
-    let request_body = GeminiRequest {
-        contents: messages,
+    let request_body = GroqRequest {
+        model,
+        messages,
     };
     
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key={}",
-        api_key
-    );
+    let url = "https://api.groq.com/openai/v1/chat/completions";
     
     let response = client
-        .post(&url)
+        .post(url)
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
@@ -89,15 +85,15 @@ async fn send_message_to_gemini(messages: Vec<Message>) -> Result<String, String
         return Err(format!("API returned error {}: {}", status, response_text));
     }
     
-    let gemini_response: GeminiResponse = serde_json::from_str(&response_text)
+    let groq_response: GroqResponse = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response: {}. Response was: {}", e, response_text))?;
     
-    gemini_response
-        .candidates
-        .first()
-        .and_then(|c| c.content.parts.first())
-        .and_then(|p| p.text.clone())
-        .ok_or_else(|| format!("No response from Gemini. Full response: {}", response_text))
+    groq_response
+        .choices
+        .into_iter()
+        .next()
+        .map(|c| c.message.content)
+        .ok_or_else(|| format!("No response from Groq. Full response: {}", response_text))
 }
 
 #[tauri::command]
@@ -138,7 +134,7 @@ async fn screenshot_and_show_window(app: tauri::AppHandle) -> Result<Vec<u8>, St
 }
 
 #[tauri::command]
-async fn send_screenshot_to_gemini(prompt: String) -> Result<String, String> {
+async fn send_screenshot_to_groq(prompt: String) -> Result<String, String> {
     // Take screenshot and convert to PNG format
     let screens = Screen::all().map_err(|e| format!("Failed to get screens: {}", e))?;
     let screen = screens.first().ok_or("No screens found")?;
@@ -162,39 +158,37 @@ async fn send_screenshot_to_gemini(prompt: String) -> Result<String, String> {
     println!("📸 Base64 size: {} chars", base64_image.len());
     
     // Get API key
-    let api_key = env::var("GOOGLE_API_KEY")
-        .map_err(|_| "GOOGLE_API_KEY environment variable not set".to_string())?;
+    let api_key = env::var("GROQ_API_KEY")
+        .map_err(|_| "GROQ_API_KEY environment variable not set".to_string())?;
     
     // Create message with text and image
-    let message = Message {
+    let message = GroqMessage {
         role: "user".to_string(),
-        parts: vec![
-            MessagePart {
-                text: Some(prompt),
-                inline_data: None,
+        content: serde_json::json!([
+            {
+                "type": "text",
+                "text": prompt
             },
-            MessagePart {
-                text: None,
-                inline_data: Some(InlineData {
-                    mime_type: "image/png".to_string(),
-                    data: base64_image,
-                }),
-            },
-        ],
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": format!("data:image/png;base64,{}", base64_image)
+                }
+            }
+        ]),
     };
     
-    let request_body = GeminiRequest {
-        contents: vec![message],
+    let request_body = GroqRequest {
+        model: "meta-llama/llama-4-scout-17b-16e-instruct".to_string(),
+        messages: vec![message],
     };
     
     let client = reqwest::Client::new();
-    let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key={}",
-        api_key
-    );
+    let url = "https://api.groq.com/openai/v1/chat/completions";
     
     let response = client
-        .post(&url)
+        .post(url)
+        .header("Authorization", format!("Bearer {}", api_key))
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
@@ -211,15 +205,15 @@ async fn send_screenshot_to_gemini(prompt: String) -> Result<String, String> {
         return Err(format!("API returned error {}: {}", status, response_text));
     }
     
-    let gemini_response: GeminiResponse = serde_json::from_str(&response_text)
+    let groq_response: GroqResponse = serde_json::from_str(&response_text)
         .map_err(|e| format!("Failed to parse response: {}. Response was: {}", e, response_text))?;
     
-    gemini_response
-        .candidates
-        .first()
-        .and_then(|c| c.content.parts.first())
-        .and_then(|p| p.text.clone())
-        .ok_or_else(|| format!("No response from Gemini. Full response: {}", response_text))
+    groq_response
+        .choices
+        .into_iter()
+        .next()
+        .map(|c| c.message.content)
+        .ok_or_else(|| format!("No response from Groq. Full response: {}", response_text))
 }
 
 #[tauri::command]
@@ -255,18 +249,140 @@ async fn store_conversation(conversation_data: ConversationData) -> Result<Strin
         .table_name("tars-conversations")
         .set_item(Some(item));
     
-    match request.send().await {
-        Ok(response) => {
-            println!("✅ Conversation stored in DynamoDB with ID: {}", id);
-            println!("📊 DynamoDB Response: {:?}", response);
-            Ok(format!("Conversation stored with ID: {}", id))
+        match request.send().await {
+            Ok(response) => {
+                println!("✅ Conversation stored in DynamoDB with ID: {}", id);
+                println!("📊 DynamoDB Response: {:?}", response);
+                Ok(format!("Conversation stored with ID: {}", id))
+            }
+            Err(e) => {
+                println!("❌ Error storing in DynamoDB: {}", e);
+                println!("🔍 Error details: {:?}", e);
+                Err(format!("Failed to store in DynamoDB: {}", e))
+            }
         }
-        Err(e) => {
-            println!("❌ Error storing in DynamoDB: {}", e);
-            println!("🔍 Error details: {:?}", e);
-            Err(format!("Failed to store in DynamoDB: {}", e))
-        }
+}
+
+lazy_static! {
+    static ref LLAMA_BACKEND: LlamaBackend = LlamaBackend::init().expect("Failed to initialize llama backend");
+    static ref CURRENT_MODEL: Mutex<Option<(String, Arc<LlamaModel>)>> = Mutex::new(None);
+}
+
+#[tauri::command]
+async fn send_message_locally(model_name: String, prompt: String) -> Result<String, String> {
+    let mut model_path = dirs::home_dir().ok_or("Home directory not found")?;
+    model_path.push("tars/models");
+    model_path.push(&model_name);
+
+    if !model_path.exists() {
+        return Err(format!("Model file not found at: {:?}", model_path));
     }
+
+    let model = {
+        let mut current = CURRENT_MODEL.lock().map_err(|e| e.to_string())?;
+        if let Some((name, m)) = current.as_ref() {
+            if name == &model_name {
+                m.clone()
+            } else {
+                let mut params = LlamaModelParams::default();
+                // Use GPU if possible (optional, but good for performance)
+                // params.set_n_gpu_layers(100); 
+                let m = LlamaModel::load_from_file(&LLAMA_BACKEND, &model_path, &params)
+                    .map_err(|e| format!("Failed to load model: {}", e))?;
+                let arc_m = Arc::new(m);
+                *current = Some((model_name.clone(), arc_m.clone()));
+                arc_m
+            }
+        } else {
+            let mut params = LlamaModelParams::default();
+            let m = LlamaModel::load_from_file(&LLAMA_BACKEND, &model_path, &params)
+                .map_err(|e| format!("Failed to load model: {}", e))?;
+            let arc_m = Arc::new(m);
+            *current = Some((model_name.clone(), arc_m.clone()));
+            arc_m
+        }
+    };
+
+    let ctx_params = LlamaContextParams::default()
+        .with_n_ctx(std::num::NonZeroU32::new(2048));
+    
+    let mut ctx = model
+        .new_context(&LLAMA_BACKEND, ctx_params)
+        .map_err(|e| format!("Failed to create context: {}", e))?;
+
+    let tokens = model
+        .str_to_token(&prompt, llama_cpp_2::model::AddBos::Always)
+        .map_err(|e| format!("Failed to tokenize prompt: {}", e))?;
+
+    let n_ctx = ctx.n_ctx() as usize;
+    if tokens.len() >= n_ctx {
+        return Err(format!("Prompt is too long ({} tokens, limit is {})", tokens.len(), n_ctx));
+    }
+
+    let mut batch = LlamaBatch::new(2048, 1);
+    let last_token_index = tokens.len() as i32 - 1;
+    for (i, token) in tokens.into_iter().enumerate() {
+        batch.add(token, i as i32, &[0], i as i32 == last_token_index)
+            .map_err(|_| "Failed to add token to batch")?;
+    }
+
+    ctx.decode(&mut batch).map_err(|e| format!("Decode failed: {}", e))?;
+
+    let mut response_bytes = Vec::new();
+    let mut n_cur = batch.n_tokens();
+    let mut sampler = llama_cpp_2::sampling::LlamaSampler::chain_simple([
+        llama_cpp_2::sampling::LlamaSampler::dist(42),
+        llama_cpp_2::sampling::LlamaSampler::temp(0.7),
+        // Add a small repetition penalty to prevent loops
+        // repeat_last_n: 64, repeat_penalty: 1.1, frequency_penalty: 0.0, presence_penalty: 0.0
+        llama_cpp_2::sampling::LlamaSampler::penalties(64, 1.1, 0.0, 0.0),
+    ]);
+
+    let stop_sequences = [
+        "<|im_end|>",
+        "<|im_start|>",
+        "\nUser:",
+        "\nAssistant:",
+    ];
+
+    while n_cur < 2048 {
+        let token = sampler.sample(&ctx, batch.n_tokens() - 1);
+        sampler.accept(token);
+
+        if model.is_eog_token(token) {
+            break;
+        }
+
+        if let Ok(output) = model.token_to_str(token, Special::Plaintext) {
+            response_bytes.extend_from_slice(output.as_bytes());
+        }
+
+        // Check for stop sequences
+        let current_text = String::from_utf8_lossy(&response_bytes);
+        let mut should_stop = false;
+        for stop_seq in &stop_sequences {
+            if current_text.contains(stop_seq) {
+                should_stop = true;
+                // Trim the stop sequence from the final output
+                if let Some(idx) = current_text.find(stop_seq) {
+                    response_bytes.truncate(idx);
+                }
+                break;
+            }
+        }
+
+        if should_stop {
+            break;
+        }
+
+        batch.clear();
+        batch.add(token, n_cur, &[0], true).map_err(|_| "Failed to add token to batch")?;
+        ctx.decode(&mut batch).map_err(|e| format!("Decode failed at {}: {}", n_cur, e))?;
+        n_cur += 1;
+    }
+
+    let response = String::from_utf8_lossy(&response_bytes).into_owned();
+    Ok(response)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -279,11 +395,12 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             toggle_window, 
-            send_message_to_gemini,
+            send_message_to_groq,
             take_screenshot,
             screenshot_and_show_window,
-            send_screenshot_to_gemini,
-            store_conversation
+            send_screenshot_to_groq,
+            store_conversation,
+            send_message_locally
         ])
         .setup(|_app| {
             Ok(())

@@ -48,3 +48,25 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# AI Models and Large Data
+models/
+src-tauri/models/
+tars/models/
+*.gguf
+*.bin
+*.pt
+*.onnx
+
+# Graphics/Screen recordings
+*.mov
+*.mp4
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+!src/assets/**/*
+
+# System-specific model locations
+/models/

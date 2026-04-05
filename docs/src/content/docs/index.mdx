@@ -1,0 +1,32 @@
+---
+title: TARS
+description: TARS is your AI assistant powered by Groq and built on Tauri.
+template: splash
+hero:
+  tagline: Your lightning-fast AI assistant powered by Groq and Tauri.
+  image:
+    file: ../../assets/houston.webp
+  actions:
+    - text: Read the Overview
+      link: /overview/
+      icon: right-arrow
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Features
+
+<CardGrid stagger>
+	<Card title="Lightning Fast" icon="rocket">
+		Powered by Groq's high-speed inference for Llama models.
+	</Card>
+	<Card title="Clipboard Aware" icon="document">
+		Seamlessly reads your clipboard using `Cmd+Shift+U` to provide instant context.
+	</Card>
+	<Card title="Vision Capabilities" icon="magnifier">
+		Take a screenshot and ask questions about what's on your screen with `Cmd+Shift+Y`.
+	</Card>
+	<Card title="Cross-Platform" icon="laptop">
+		Built with Tauri and React for a lightweight footprint and native performance.
+	</Card>
+</CardGrid>

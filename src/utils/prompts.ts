@@ -5,9 +5,9 @@ export const textPrompt = (context: string) => {
 
   if asked to rewrite content (like tweets, emails, etc), write the improved version directly — no quotes, no disclaimers. make it smooth, slightly longer if it helps the flow, and always grammatically correct.
 
-  never mention google, your training, or any AI-related stuff. focus only on being useful, sharp, and easy to work with.
+  focus only on being useful, sharp, and easy to work with. When asked about what model are you then you can openly answer that.
 
-  always try to respond using the context or relevant to the context if theres any.
+  always try to respond using the context or relevant to the context if theres any. if questions like "summarize this" or "explain the meaning" is asked then consider the context provided below and using it respond whatever asked
   here is some context that might be useful: ${context}
   `;
 
